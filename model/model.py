@@ -26,7 +26,7 @@ from net_ops import *
 from utils import *
 from glob import glob
 from copy import deepcopy
-from itertools import izip_longest
+from itertools import zip_longest
 
 # Public interface
 
@@ -220,7 +220,7 @@ class RGNModel(object):
                 filters = {grp: id_filter(ids, grp) for grp in config.io['evaluation_sub_groups']} if mode == 'evaluation' else {}
                 filters.update({'all': tf.tile([True], tf.shape(ids))})
 
-                for group_id, group_filter in filters.iteritems():
+                for group_id, group_filter in filters.items():
                     with tf.variable_scope(group_id):
                         # Tertiary loss
                         effective_tertiary_loss = 0.
@@ -306,7 +306,7 @@ class RGNModel(object):
                 self._summary_writer.add_summary(evaluation_dict['merged_summaries_op'], global_step=evaluation_dict['global_step'])
 
             # remove non-user facing ops
-            if pretty: [evaluation_dict.pop(k) for k in evaluation_dict.keys() if 'op' in k]
+            if pretty: [evaluation_dict.pop(k) for k in list(evaluation_dict.keys()) if 'op' in k]
 
             return evaluation_dict
 
@@ -321,11 +321,11 @@ class RGNModel(object):
             prediction_dict = ops_to_dict(session, self._prediction_ops)
 
             # process tertiary sequences
-            if prediction_dict.has_key('coordinates'): prediction_dict['coordinates'] = np.transpose(prediction_dict['coordinates'], (1, 2, 0))
+            if 'coordinates' in prediction_dict: prediction_dict['coordinates'] = np.transpose(prediction_dict['coordinates'], (1, 2, 0))
 
             # generate return dict
             predictions = {}
-            for id_, num_steps, tertiary, recurrent_states in izip_longest(*[prediction_dict.get(key, []) 
+            for id_, num_steps, tertiary, recurrent_states in zip_longest(*[prediction_dict.get(key, []) 
                                                                            for key in ['ids', 'num_stepss', 'coordinates', 'recurrent_states']]):
                 prediction = {}
 
@@ -514,7 +514,7 @@ def _device_function_constructor(functions_on_devices={}, default_device=''):
 
     def device_function(op):
         # note that one can't depend on ordering of items in dicts due to their indeterminancy
-        for device, funcs in functions_on_devices.iteritems():
+        for device, funcs in functions_on_devices.items():
             if any(((func in op.name) or any(func in node.name for node in op.inputs)) for func in funcs):
                 return device
         else:
@@ -545,8 +545,8 @@ def _dataflow(config, max_length):
 
     # randomization
     if config['shuffle']: # based on https://github.com/tensorflow/tensorflow/issues/5147#issuecomment-271086206
-        dtypes = list(map(lambda x: x.dtype, inputs))
-        shapes = list(map(lambda x: x.get_shape(), inputs))
+        dtypes = list([x.dtype for x in inputs])
+        shapes = list([x.get_shape() for x in inputs])
         randomizer_queue = tf.RandomShuffleQueue(capacity=config['batch_queue_capacity'], min_after_dequeue=config['min_after_dequeue'], 
                                                  dtypes=dtypes, seed=config['queue_seed'], name='randomization_queue')
         randomizer_enqueue_op = randomizer_queue.enqueue(inputs)
@@ -696,7 +696,7 @@ def _higher_recurrence(mode, config, inputs, num_stepss, alphabet=None):
                 # all recurrent layer sizes must be the same
                 if (residual_n >= 1) and ((layer_idx - residual_shift) % residual_n == 0) and (layer_idx >= residual_n + residual_shift):  
                     layer_recurrent_outputs = layer_recurrent_outputs + layers_recurrent_outputs[-residual_n]
-                    print('residually wired layer ' + str(layer_idx - residual_n + 1) + ' to layer ' + str(layer_idx + 1))
+                    print(('residually wired layer ' + str(layer_idx - residual_n + 1) + ' to layer ' + str(layer_idx + 1)))
 
                 # add to list of recurrent layers' outputs (needed for residual connection and some skip connections)
                 layers_recurrent_outputs.append(layer_recurrent_outputs)
@@ -1106,7 +1106,7 @@ def _training(config, loss):
                       'momentum': tf.train.MomentumOptimizer,
                       'adagrad': tf.train.AdagradOptimizer,
                       'adadelta': tf.train.AdadeltaOptimizer}[config['optimizer']]
-    optimizer_params = config.viewkeys() & set(optimizer_args(optimizer_func))
+    optimizer_params = config.keys() & set(optimizer_args(optimizer_func))
     optimizer_params_and_values = {param: config[param] for param in optimizer_params}
     optimizer = optimizer_func(**optimizer_params_and_values)
 
@@ -1119,7 +1119,7 @@ def _training(config, loss):
             if case('norm_rescaling'):
                 grads, _ = tf.clip_by_global_norm([g for g, _ in grads_and_vars], threshold)
                 vars_ = [v for _, v in grads_and_vars]
-                grads_and_vars = zip(grads, vars_)
+                grads_and_vars = list(zip(grads, vars_))
             elif case('hard_clipping'):
                 grads_and_vars = [(tf.clip_by_value(g, -threshold, threshold), v) for g, v in grads_and_vars]
 
